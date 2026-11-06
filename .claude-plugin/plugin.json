@@ -1,0 +1,13 @@
+{
+  "name": "living-ui",
+  "description": "Build web UIs that feel alive: an agent-swarm build animation that assembles the page, looping HyperFrames videos, a WebGL hero, holographic cards and glitch type, all on a static-first, jank-free foundation.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Anh Lam Truong",
+    "url": "https://www.lamanhtruong.com"
+  },
+  "homepage": "https://github.com/anhlamtruong/living-ui-skills",
+  "repository": "https://github.com/anhlamtruong/living-ui-skills",
+  "license": "MIT",
+  "keywords": ["ui", "animation", "gsap", "webgl", "hyperframes", "nextjs", "motion", "design-engineering"]
+}

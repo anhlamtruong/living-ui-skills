@@ -1,0 +1,225 @@
+/* Part of living-ui-skills (MIT). Adapt freely.
+   https://github.com/anhlamtruong/living-ui-skills */
+/* Agent-swarm build layer.
+   Hidden-until-built only applies while the head script has set
+   html[data-build="on"]; without JS nothing is ever hidden. Opacity (not
+   visibility) keeps content in the accessibility tree with no layout shift. */
+html[data-build="on"] [data-build-item]:not([data-built]):not([data-build-keep]) {
+  opacity: 0;
+}
+
+/* data-build-keep="mobile": kept (visible from first paint) on phones, built
+   like any other item from 768px up. Same breakpoint as the phone profile in
+   palette.ts (WIDE_QUERY). Plain data-build-keep (any other value, including
+   React's "true") is always kept by the rule above. */
+@media (min-width: 768px) {
+  html[data-build="on"] [data-build-item][data-build-keep="mobile"]:not([data-built]) {
+    opacity: 0;
+  }
+}
+
+/* Element-qualified selectors so broad page rules (e.g. `.page > *`) cannot override positioning. */
+canvas.swarm-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: var(--swarm-z, 55);
+  pointer-events: none;
+  visibility: hidden;
+}
+
+/* Layer for draft-font clones: out of the page flow, under the canvas. */
+div.swarm-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  overflow: visible;
+  z-index: calc(var(--swarm-z, 55) - 1);
+  pointer-events: none;
+}
+
+.swarm-draft {
+  position: absolute;
+  will-change: opacity, filter;
+  box-sizing: border-box;
+  margin: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+  user-select: none;
+  font-family: var(--swarm-font-mono, var(--font-geist-mono, ui-monospace)), ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* The mono draft is uniform; the face clone (weight sweep) keeps the real
+   nested faces and colors, like the element it stands in for. */
+.swarm-draft:not(.swarm-draft--face) * {
+  color: inherit !important;
+  font-family: inherit !important;
+}
+
+div.swarm-hud {
+  position: fixed;
+  left: max(16px, env(safe-area-inset-left));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  z-index: var(--swarm-hud-z, 56);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 5px 5px 12px;
+  font: 500 11px/1.2 var(--swarm-font-mono, var(--font-geist-mono, ui-monospace)), ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--swarm-muted, #8a97a8);
+  background: rgb(12 16 23 / 0.74);
+  border: 1px solid var(--swarm-line, #1c2431);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
+  -webkit-backdrop-filter: blur(10px) saturate(1.3);
+  backdrop-filter: blur(10px) saturate(1.3);
+}
+
+div.swarm-hud[data-state="idle"] {
+  padding: 4px;
+}
+
+.swarm-hud__stats {
+  margin-right: 4px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.swarm-hud__stats::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--swarm-accent, #5eead4);
+  vertical-align: 1px;
+}
+
+.swarm-hud__btn {
+  appearance: none;
+  font: inherit;
+  color: var(--swarm-text, #e8edf4);
+  background: transparent;
+  border: 1px solid var(--swarm-line, #1c2431);
+  border-radius: 6px;
+  padding: 4px 9px;
+  cursor: pointer;
+}
+
+div.swarm-hud[data-state="idle"] .swarm-hud__btn {
+  border-color: transparent;
+  color: var(--swarm-muted, #8a97a8);
+}
+
+.swarm-hud__btn:hover,
+div.swarm-hud[data-state="idle"] .swarm-hud__btn:hover {
+  border-color: var(--swarm-accent, #5eead4);
+  color: var(--swarm-accent, #5eead4);
+}
+
+.swarm-hud__btn[aria-pressed="true"] {
+  border-color: var(--swarm-accent, #5eead4);
+  color: var(--swarm-accent, #5eead4);
+}
+
+.swarm-hud__btn:focus-visible {
+  outline: 2px solid var(--swarm-accent, #5eead4);
+  outline-offset: 2px;
+}
+
+@media (max-width: 420px) {
+  div.swarm-hud {
+    font-size: 10px;
+    padding-left: 9px;
+  }
+}
+
+/* ---- Optional hooks (live log, mesh nodes, deploy finale) ----
+   Rename or restyle freely; the engine only relies on the data attributes. */
+
+/* [data-swarm-log] container: fixed height so live lines never shift layout.
+   Give it data-swarm-log-lines="N" and keep N here in sync. */
+.swarm-log {
+  height: calc(6 * 1.75em);
+  overflow: hidden;
+}
+.swarm-log__line {
+  display: flex;
+  gap: 0.75rem;
+  white-space: nowrap;
+}
+.swarm-log__line::before {
+  content: "\2192";
+  color: var(--swarm-dim, #5b6676);
+}
+.swarm-log__who {
+  width: 6.5rem;
+  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.swarm-log__what {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--swarm-muted, #8a97a8);
+}
+.swarm-log__t {
+  flex-shrink: 0;
+  color: var(--swarm-dim, #5b6676);
+  font-variant-numeric: tabular-nums;
+}
+
+/* [data-swarm-spawn] mesh nodes (SVG groups) light up at boot ([data-lit]). */
+[data-swarm-spawn] circle {
+  transition:
+    stroke-opacity 260ms ease,
+    fill-opacity 260ms ease,
+    r 260ms ease;
+}
+[data-swarm-spawn][data-lit] circle {
+  stroke-opacity: 1;
+  fill-opacity: 1;
+}
+[data-swarm-spawn] .swarm-node-halo {
+  opacity: 0;
+  transition: opacity 260ms ease;
+}
+[data-swarm-spawn][data-lit] .swarm-node-halo {
+  opacity: 1;
+}
+[data-swarm-spawn][data-lit] {
+  filter: drop-shadow(0 0 6px currentColor);
+}
+
+/* [data-deploy-target] pulses twice once the finale lands ([data-deployed]). */
+@keyframes swarm-deployed {
+  0% {
+    box-shadow: 0 0 0 0 rgba(94, 234, 212, 0.55);
+  }
+  100% {
+    box-shadow: 0 0 0 22px rgba(94, 234, 212, 0);
+  }
+}
+[data-deploy-target][data-deployed] {
+  animation: swarm-deployed 1.1s ease-out 2;
+}
+
+/* Never hide content when printing. */
+@media print {
+  html[data-build] [data-build-item] {
+    opacity: 1 !important;
+    clip-path: none !important;
+  }
+  canvas.swarm-canvas,
+  div.swarm-layer,
+  div.swarm-hud {
+    display: none;
+  }
+}

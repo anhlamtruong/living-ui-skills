@@ -1,0 +1,451 @@
+<template>
+  <!-- Part of living-ui-skills (MIT). Adapt freely.
+       Delivery-pipeline band: packets flow through five stations. Everything is a
+       pure function of time, so the state at 8 s equals the state at 0 s. -->
+  <style>
+    @font-face {
+      font-family: "Geist Mono";
+      src: url("assets/fonts/GeistMonoVF.woff") format("woff");
+      font-weight: 100 900;
+    }
+
+    /* Palette: swap these for your site's tokens (references/design-spec.md). */
+    #root {
+      --ground: #07090d;
+      --line: #1c2431;
+      --line-strong: #2a3546;
+      --ink: #e8edf4;
+      --muted: #8a97a8;
+      --label: #7a8697; /* dim mono labels, kept above 4.5:1 on the ground */
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      background: var(--ground);
+      font-family: "Geist Mono", monospace;
+    }
+
+    /* Grid: 96 px major, 24 px minor; a major line runs under the rail (y = 136). */
+    .pl-grid {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(to right, rgba(120, 140, 170, 0.07) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(120, 140, 170, 0.07) 1px, transparent 1px),
+        linear-gradient(to right, rgba(120, 140, 170, 0.035) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(120, 140, 170, 0.035) 1px, transparent 1px);
+      background-size:
+        96px 96px,
+        96px 96px,
+        24px 24px,
+        24px 24px;
+      background-position: 0 40px;
+    }
+
+    /* Rail: dashed "continuation" on both sides, solid through the stations. */
+    .pl-rail {
+      position: absolute;
+      top: 136px;
+      height: 1px;
+    }
+    #pl-rail-in,
+    #pl-rail-out {
+      background-image: repeating-linear-gradient(
+        to right,
+        var(--line-strong) 0 12px,
+        transparent 12px 24px
+      );
+    }
+    #pl-rail-in {
+      left: 0;
+      width: 672px;
+    }
+    #pl-rail-out {
+      left: 1248px;
+      width: 672px;
+    }
+    #pl-rail-core {
+      left: 672px;
+      width: 576px;
+      background: var(--line-strong);
+    }
+
+    /* Ruler under the stations */
+    .pl-ruler {
+      position: absolute;
+      left: 0;
+      width: 1920px;
+    }
+    #pl-ruler-line {
+      top: 192px;
+      height: 1px;
+      background: var(--line-strong);
+    }
+    #pl-ruler-minor {
+      top: 193px;
+      height: 6px;
+      background-image: repeating-linear-gradient(
+        to right,
+        var(--line-strong) 0 1px,
+        transparent 1px 24px
+      );
+    }
+    #pl-ruler-major {
+      top: 193px;
+      height: 12px;
+      background-image: repeating-linear-gradient(
+        to right,
+        var(--line-strong) 0 1px,
+        transparent 1px 96px
+      );
+    }
+    .pl-ruler-note {
+      position: absolute;
+      top: 214px;
+      font-size: 18px;
+      line-height: 22px;
+      letter-spacing: 0.06em;
+      color: var(--label);
+      white-space: nowrap;
+    }
+    #pl-note-in {
+      left: 384px;
+    }
+    #pl-note-out {
+      left: 1536px;
+      transform: translateX(-100%);
+    }
+
+    /* Packets */
+    .pl-packet {
+      position: absolute;
+      left: 0;
+      top: 132px;
+      height: 8px;
+      border-radius: 4px;
+      will-change: transform;
+    }
+
+    /* Stations */
+    .pl-station {
+      position: absolute;
+      top: 0;
+      width: 0;
+      height: 320px;
+    }
+    .pl-guide {
+      position: absolute;
+      left: 0;
+      top: 148px;
+      width: 1px;
+      height: 44px;
+      background-image: repeating-linear-gradient(
+        to bottom,
+        var(--line-strong) 0 3px,
+        transparent 3px 6px
+      );
+    }
+    .pl-tick {
+      position: absolute;
+      left: -1px;
+      top: 186px;
+      width: 3px;
+      height: 20px;
+      border-radius: 1px;
+      background: var(--line-strong);
+    }
+    .pl-node,
+    .pl-ring {
+      position: absolute;
+      left: -9px;
+      top: 127px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+    }
+    .pl-node {
+      background: var(--ground);
+      border: 2px solid var(--line-strong);
+    }
+    .pl-ring {
+      border: 1.5px solid var(--line-strong);
+      opacity: 0;
+    }
+    .pl-label {
+      position: absolute;
+      left: 0;
+      top: 76px;
+      transform: translateX(-50%);
+      font-size: 24px;
+      line-height: 28px;
+      letter-spacing: 0.02em;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .pl-index {
+      position: absolute;
+      left: 0;
+      top: 214px;
+      transform: translateX(-50%);
+      font-size: 18px;
+      line-height: 22px;
+      letter-spacing: 0.06em;
+      color: var(--label);
+      white-space: nowrap;
+    }
+
+    /* Edge fades to the page ground */
+    .pl-fade {
+      position: absolute;
+      top: 0;
+      width: 360px;
+      height: 320px;
+      pointer-events: none;
+    }
+    #pl-fade-l {
+      left: 0;
+      background: linear-gradient(
+        to right,
+        #07090d 0%,
+        rgba(7, 9, 13, 0.92) 18%,
+        rgba(7, 9, 13, 0.55) 55%,
+        rgba(7, 9, 13, 0) 100%
+      );
+    }
+    #pl-fade-r {
+      right: 0;
+      background: linear-gradient(
+        to left,
+        #07090d 0%,
+        rgba(7, 9, 13, 0.92) 18%,
+        rgba(7, 9, 13, 0.55) 55%,
+        rgba(7, 9, 13, 0) 100%
+      );
+    }
+  </style>
+
+  <div id="root" data-composition-id="flow" data-width="1920" data-height="320">
+    <div class="pl-grid"></div>
+
+    <div id="pl-ruler-line" class="pl-ruler"></div>
+    <div id="pl-ruler-minor" class="pl-ruler"></div>
+    <div id="pl-ruler-major" class="pl-ruler"></div>
+    <div id="pl-note-in" class="pl-ruler-note">backlog &#8594;</div>
+    <div id="pl-note-out" class="pl-ruler-note">&#8594; production</div>
+
+    <div id="pl-rail-in" class="pl-rail"></div>
+    <div id="pl-rail-core" class="pl-rail"></div>
+    <div id="pl-rail-out" class="pl-rail"></div>
+
+    <div id="pl-packets" data-layout-allow-overflow></div>
+
+    <div id="pl-st-plan" class="pl-station" style="left: 672px">
+      <div class="pl-guide"></div>
+      <div class="pl-tick"></div>
+      <div class="pl-ring"></div>
+      <div class="pl-node"></div>
+      <div class="pl-label">plan</div>
+      <div class="pl-index">01</div>
+    </div>
+    <div id="pl-st-code" class="pl-station" style="left: 816px">
+      <div class="pl-guide"></div>
+      <div class="pl-tick"></div>
+      <div class="pl-ring"></div>
+      <div class="pl-node"></div>
+      <div class="pl-label">code</div>
+      <div class="pl-index">02</div>
+    </div>
+    <div id="pl-st-test" class="pl-station" style="left: 960px">
+      <div class="pl-guide"></div>
+      <div class="pl-tick"></div>
+      <div class="pl-ring"></div>
+      <div class="pl-node"></div>
+      <div class="pl-label">test</div>
+      <div class="pl-index">03</div>
+    </div>
+    <div id="pl-st-review" class="pl-station" style="left: 1104px">
+      <div class="pl-guide"></div>
+      <div class="pl-tick"></div>
+      <div class="pl-ring"></div>
+      <div class="pl-node"></div>
+      <div class="pl-label">review</div>
+      <div class="pl-index">04</div>
+    </div>
+    <div id="pl-st-ship" class="pl-station" style="left: 1248px">
+      <div class="pl-guide"></div>
+      <div class="pl-tick"></div>
+      <div class="pl-ring"></div>
+      <div class="pl-node"></div>
+      <div class="pl-label">ship</div>
+      <div class="pl-index">05</div>
+    </div>
+
+    <div id="pl-fade-l" class="pl-fade"></div>
+    <div id="pl-fade-r" class="pl-fade"></div>
+  </div>
+
+  <script>
+    (function () {
+      // Everything on screen is a pure function of t (seconds, 0..8).
+      // Packets ride the rail at V px/s; their pattern repeats every TILE px,
+      // and V * DUR === TILE, so the state at 8 s equals the state at 0 s.
+      const DUR = 8;
+      const V = 120;
+      const TILE = 960;
+      const DASH = 24; // rail dash period: TILE is a multiple of it
+
+      const GROUND = [7, 9, 13];
+      const LINE = [42, 53, 70];
+      const MUTED = [138, 151, 168];
+      const LABEL = [122, 134, 151];
+      const STATIONS = [
+        { id: "pl-st-plan", x: 672, c: [167, 139, 250] },
+        { id: "pl-st-code", x: 816, c: [52, 211, 153] },
+        { id: "pl-st-test", x: 960, c: [96, 165, 250] },
+        { id: "pl-st-review", x: 1104, c: [251, 191, 36] },
+        { id: "pl-st-ship", x: 1248, c: [251, 146, 60] },
+      ];
+
+      // One tile of traffic: head position at t = 0 (px inside the tile) and length.
+      const PACKETS = [
+        { x: 0, len: 40 },
+        { x: 188, len: 14 },
+        { x: 226, len: 14 },
+        { x: 452, len: 64 },
+        { x: 704, len: 24 },
+      ];
+      const PHASE = 316; // shifts the whole stream so frame 0 has stations lit
+      const COPIES = 3; // tiles drawn side by side (covers 1920 px plus margins)
+
+      const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+      const mix = (a, b, k) => a + (b - a) * k;
+      const mixRGB = (a, b, k) => [mix(a[0], b[0], k), mix(a[1], b[1], k), mix(a[2], b[2], k)];
+      const rgba = (c, a) =>
+        `rgba(${Math.round(c[0])},${Math.round(c[1])},${Math.round(c[2])},${a.toFixed(3)})`;
+      const mod = (a, n) => ((a % n) + n) % n;
+      const easeOut = (k) => 1 - Math.pow(1 - k, 3);
+
+      // Build packet elements once (synchronously, before the timeline is registered).
+      const packetHost = document.getElementById("pl-packets");
+      const packetEls = [];
+      PACKETS.forEach((p, i) => {
+        for (let k = 0; k < COPIES; k++) {
+          const el = document.createElement("div");
+          el.className = "pl-packet";
+          el.id = `pl-packet-${i}-${k}`;
+          el.style.width = `${p.len}px`;
+          packetHost.appendChild(el);
+          packetEls.push({ el, p, k });
+        }
+      });
+
+      const stationEls = STATIONS.map((s) => {
+        const host = document.getElementById(s.id);
+        return {
+          s,
+          node: host.querySelector(".pl-node"),
+          ring: host.querySelector(".pl-ring"),
+          label: host.querySelector(".pl-label"),
+          index: host.querySelector(".pl-index"),
+          guide: host.querySelector(".pl-guide"),
+          tick: host.querySelector(".pl-tick"),
+        };
+      });
+      const railIn = document.getElementById("pl-rail-in");
+      const railOut = document.getElementById("pl-rail-out");
+
+      // Colour of a packet whose centre is at cx: the role of the last station it passed.
+      function packetColor(cx) {
+        let c = MUTED;
+        let a = 0.7;
+        let lit = 0;
+        for (const s of STATIONS) {
+          if (cx < s.x) break;
+          const k = easeOut(clamp((cx - s.x) / 26));
+          c = mixRGB(c, s.c, k);
+          a = mix(a, 1, k);
+          lit = k;
+        }
+        return { c, a, lit };
+      }
+
+      function renderAt(t) {
+        const travel = V * t;
+
+        // Rail dashes drift with the flow.
+        const dash = mod(travel, DASH);
+        railIn.style.backgroundPosition = `${dash}px 0`;
+        railOut.style.backgroundPosition = `${dash}px 0`;
+
+        // Packets
+        const spans = [];
+        for (const { el, p, k } of packetEls) {
+          const head = mod(p.x + PHASE + travel, TILE) + k * TILE - 120;
+          const tail = head - p.len;
+          spans.push({ head, tail });
+          const { c, a, lit } = packetColor(head - p.len / 2);
+          el.style.transform = `translate3d(${tail.toFixed(2)}px,0,0)`;
+          el.style.background = `linear-gradient(90deg, ${rgba(c, 0)} 0%, ${rgba(c, a * 0.75)} 55%, ${rgba(c, a)} 100%)`;
+          el.style.boxShadow = `0 0 ${10 + 6 * lit}px ${rgba(c, 0.18 + 0.32 * lit)}`;
+        }
+
+        // Stations light while a packet passes, then decay.
+        for (const st of stationEls) {
+          const x = st.s.x;
+          let glow = 0;
+          let lastHit = Infinity; // seconds since the most recent head crossed the node
+          for (const { head, tail } of spans) {
+            let g;
+            if (tail <= x && head >= x) g = 1;
+            else if (head < x) g = clamp(1 - (x - head) / 14);
+            else g = Math.exp(-(tail - x) / 70);
+            glow = Math.max(glow, g);
+            if (head >= x) lastHit = Math.min(lastHit, (head - x) / V);
+          }
+          const c = st.s.c;
+          st.node.style.background = rgba(mixRGB(GROUND, c, 0.85 * glow), 1);
+          st.node.style.borderColor = rgba(mixRGB(LINE, c, 0.45 + 0.55 * glow), 1);
+          st.node.style.boxShadow = `0 0 ${6 + 18 * glow}px ${rgba(c, 0.08 + 0.55 * glow)}`;
+          st.label.style.color = rgba(mixRGB(MUTED, c, 0.25 + 0.75 * glow), 1);
+          st.index.style.color = rgba(mixRGB(LABEL, c, 0.85 * glow), 1);
+          st.tick.style.background = rgba(mixRGB(LINE, c, 0.3 + 0.7 * glow), 1);
+          st.tick.style.boxShadow = `0 0 ${10 * glow}px ${rgba(c, 0.5 * glow)}`;
+          st.guide.style.opacity = (0.55 + 0.45 * glow).toFixed(3);
+          st.guide.style.backgroundImage = `repeating-linear-gradient(to bottom, ${rgba(
+            mixRGB(LINE, c, glow),
+            1,
+          )} 0 3px, transparent 3px 6px)`;
+
+          // A ring expands off the node each time a packet head crosses it.
+          const age = lastHit / 0.75;
+          if (age < 1) {
+            const s = 1 + 1.5 * easeOut(age);
+            st.ring.style.opacity = (0.75 * (1 - age)).toFixed(3);
+            st.ring.style.transform = `scale(${s.toFixed(3)})`;
+            st.ring.style.borderColor = rgba(c, 1);
+          } else {
+            st.ring.style.opacity = "0";
+          }
+        }
+      }
+
+      const clock = { t: 0 };
+      const tl = gsap.timeline({ paused: true });
+      tl.to(
+        clock,
+        {
+          t: DUR,
+          duration: DUR,
+          ease: "none",
+          onUpdate: () => renderAt(clock.t),
+        },
+        0,
+      );
+      window.addEventListener("hf-seek", (e) =>
+        renderAt(Math.min(DUR, Math.max(0, Number(e.detail.time) || 0))),
+      );
+      renderAt(0);
+      window.__timelines = window.__timelines || {};
+      window.__timelines["flow"] = tl;
+    })();
+  </script>
+</template>

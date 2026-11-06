@@ -1,0 +1,549 @@
+/* Part of living-ui-skills (MIT). Adapt freely.
+   Live effects (see fx-root.tsx and hero-shader.tsx). Everything only moves
+   transform / opacity / clip-path or paints in its own small layer, so nothing
+   here can shift layout. Theme it with the custom properties below. */
+
+:root {
+  --fx-accent: #5eead4; /* glitch layer A, scramble glyphs, spotlight glow */
+  --fx-hot: #f472b6; /* glitch layer B */
+  --fx-sheen-1: #5eead4; /* holo border sheen, in order around the ring */
+  --fx-sheen-2: #60a5fa;
+  --fx-sheen-3: #a78bfa;
+  --fx-sheen-4: #f472b6;
+  --fx-sheen-5: #fbbf24;
+  --fx-grid-line: rgba(120, 140, 170, 0.07); /* base grid (.fx-grid) */
+  --fx-grid-fine-line: rgba(120, 140, 170, 0.035);
+  --fx-grid-cell: 96px; /* spotlight.ts reads this; keep it in px */
+  --fx-grid-fine: 24px;
+  --fx-spot-size: 560px; /* spotlight.ts reads this; keep it in px */
+  --fx-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* ------------------------------------------------------------------------ */
+/* 0. Optional fixed base grid. Skip it if your page already has one, but    */
+/*    keep yours anchored at the viewport origin so the spotlight lines up.  */
+/*    Put .fx-grid on a full-page wrapper and lift content with z-index: 1.  */
+/* ------------------------------------------------------------------------ */
+
+.fx-grid {
+  position: relative;
+}
+.fx-grid::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(var(--fx-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--fx-grid-line) 1px, transparent 1px),
+    linear-gradient(var(--fx-grid-fine-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--fx-grid-fine-line) 1px, transparent 1px);
+  background-size:
+    var(--fx-grid-cell) var(--fx-grid-cell),
+    var(--fx-grid-cell) var(--fx-grid-cell),
+    var(--fx-grid-fine) var(--fx-grid-fine),
+    var(--fx-grid-fine) var(--fx-grid-fine);
+}
+
+/* ------------------------------------------------------------------------ */
+/* 1. Hero shader: WebGL aurora behind the hero content.                     */
+/* ------------------------------------------------------------------------ */
+
+canvas.fx-shader {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  user-select: none;
+  opacity: 0;
+  transition: opacity 1.8s ease;
+}
+canvas.fx-shader[data-on] {
+  opacity: 1;
+}
+
+/* ------------------------------------------------------------------------ */
+/* 2. Hologram cards: injected overlay (glare + iridescent border sheen).     */
+/*    The card itself only gets an inline transform while hovered/settling.  */
+/* ------------------------------------------------------------------------ */
+
+.fx-holo-host.fx-holo-host {
+  /* The JS spring drives transform; a CSS transform transition would lag it.
+     Doubled class: beats a theme card rule such as .card { transition: transform } */
+  transition:
+    border-color 200ms ease,
+    box-shadow 360ms ease;
+  will-change: transform;
+  box-shadow:
+    0 26px 50px -30px rgba(0, 0, 0, 0.9),
+    0 0 36px -18px color-mix(in srgb, var(--fx-accent) 18%, transparent);
+}
+.fx-holo-pos {
+  position: relative;
+}
+
+span.fx-holo {
+  position: absolute;
+  inset: -1px; /* sits on the card's own 1px border */
+  z-index: 3;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  --fx-x: 50%;
+  --fx-y: 50%;
+  --fx-a: 0deg;
+  background:
+    radial-gradient(
+      circle at var(--fx-x) var(--fx-y),
+      rgba(255, 255, 255, 0.1),
+      rgba(255, 255, 255, 0.035) 24%,
+      transparent 58%
+    ),
+    linear-gradient(
+      calc(var(--fx-a) + 120deg),
+      transparent 22%,
+      color-mix(in srgb, var(--fx-sheen-1) 4.5%, transparent) 38%,
+      color-mix(in srgb, var(--fx-sheen-3) 5%, transparent) 50%,
+      color-mix(in srgb, var(--fx-sheen-4) 3.5%, transparent) 62%,
+      transparent 78%
+    );
+}
+/* overflow:hidden cards clip their border box: draw the ring just inside. */
+span.fx-holo.fx-holo--in {
+  inset: 0;
+}
+
+span.fx-holo::before,
+span.fx-holo::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: conic-gradient(
+    from var(--fx-a) at var(--fx-x) var(--fx-y),
+    var(--fx-sheen-1),
+    var(--fx-sheen-2),
+    var(--fx-sheen-3),
+    var(--fx-sheen-4),
+    var(--fx-sheen-5),
+    var(--fx-sheen-1)
+  );
+}
+/* Whole ring, faint. */
+span.fx-holo::before {
+  opacity: 0.38;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+}
+/* Ring near the pointer, bright. */
+span.fx-holo::after {
+  padding: 1.5px;
+  -webkit-mask:
+    radial-gradient(circle 190px at var(--fx-x) var(--fx-y), #000, transparent 72%),
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: source-in, xor;
+  mask:
+    radial-gradient(circle 190px at var(--fx-x) var(--fx-y), #000, transparent 72%),
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: intersect, exclude;
+}
+
+/* ------------------------------------------------------------------------ */
+/* 3. Grid spotlight: a brighter copy of the base grid, revealed            */
+/*    around the pointer. The window and the counter-shifted grid only move   */
+/*    by transform (compositor only); the grid stays aligned to the viewport. */
+/* ------------------------------------------------------------------------ */
+
+div.fx-spot {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 0; /* after the base grid (also z 0) in tree order, under content (z 1) */
+  width: var(--fx-spot-size);
+  height: var(--fx-spot-size);
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 420ms ease,
+    visibility 0s linear 420ms;
+  contain: strict;
+  will-change: transform;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, var(--fx-accent) 7%, transparent),
+    transparent 75%
+  );
+  -webkit-mask-image: radial-gradient(
+    closest-side,
+    #000 0%,
+    rgba(0, 0, 0, 0.62) 34%,
+    rgba(0, 0, 0, 0.18) 66%,
+    transparent 100%
+  );
+  mask-image: radial-gradient(
+    closest-side,
+    #000 0%,
+    rgba(0, 0, 0, 0.62) 34%,
+    rgba(0, 0, 0, 0.18) 66%,
+    transparent 100%
+  );
+}
+div.fx-spot[data-on] {
+  opacity: 1;
+  visibility: visible;
+  transition:
+    opacity 420ms ease,
+    visibility 0s;
+}
+div.fx-spot[data-on="tap"] {
+  opacity: 0.7;
+}
+div.fx-spot__grid {
+  position: absolute;
+  left: 0;
+  top: 0;
+  /* window + one cell, so any alignment offset is covered */
+  width: calc(var(--fx-spot-size) + var(--fx-grid-cell));
+  height: calc(var(--fx-spot-size) + var(--fx-grid-cell));
+  will-change: transform;
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--fx-accent) 20%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--fx-accent) 20%, transparent) 1px, transparent 1px),
+    linear-gradient(rgba(150, 175, 205, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(150, 175, 205, 0.1) 1px, transparent 1px);
+  background-size:
+    var(--fx-grid-cell) var(--fx-grid-cell),
+    var(--fx-grid-cell) var(--fx-grid-cell),
+    var(--fx-grid-fine) var(--fx-grid-fine),
+    var(--fx-grid-fine) var(--fx-grid-fine);
+}
+
+/* ------------------------------------------------------------------------ */
+/* 4a. Glitch headings: two colored copies (client-rendered, aria-hidden)     */
+/*     sliced and shifted; the real heading only jitters. Toggled by          */
+/*     [data-glitch] on the wrapper; --fx-gi scales the offsets.              */
+/* ------------------------------------------------------------------------ */
+
+.fx-glitch {
+  position: relative;
+}
+.fx-glitch__copy {
+  position: absolute;
+  inset: 0;
+  display: block;
+  margin: 0;
+  visibility: hidden;
+  opacity: 0.9;
+  pointer-events: none;
+  user-select: none;
+  mix-blend-mode: screen;
+}
+.fx-glitch__copy,
+.fx-glitch__copy * {
+  color: var(--fx-gc) !important;
+}
+.fx-glitch__copy--a {
+  --fx-gc: var(--fx-accent);
+}
+.fx-glitch__copy--b {
+  --fx-gc: var(--fx-hot);
+}
+
+.fx-glitch[data-glitch] .fx-glitch__base,
+.fx-glitch[data-glitch] .fx-glitch__copy {
+  animation-timing-function: steps(1, end);
+  animation-fill-mode: both;
+}
+.fx-glitch[data-glitch="in"] .fx-glitch__base {
+  animation-name: fx-gl-base;
+  animation-duration: 560ms;
+}
+.fx-glitch[data-glitch="in"] .fx-glitch__copy--a {
+  animation-name: fx-gl-a;
+  animation-duration: 560ms;
+}
+.fx-glitch[data-glitch="in"] .fx-glitch__copy--b {
+  animation-name: fx-gl-b;
+  animation-duration: 560ms;
+}
+.fx-glitch[data-glitch="m1"] .fx-glitch__base,
+.fx-glitch[data-glitch="m2"] .fx-glitch__base {
+  animation-name: fx-gl-mbase;
+  animation-duration: 260ms;
+}
+.fx-glitch[data-glitch="m1"] .fx-glitch__copy--a,
+.fx-glitch[data-glitch="m2"] .fx-glitch__copy--b {
+  animation-name: fx-gl-m1;
+  animation-duration: 260ms;
+}
+.fx-glitch[data-glitch="m1"] .fx-glitch__copy--b,
+.fx-glitch[data-glitch="m2"] .fx-glitch__copy--a {
+  animation-name: fx-gl-m2;
+  animation-duration: 260ms;
+}
+
+@keyframes fx-gl-base {
+  0% {
+    transform: translate3d(calc(var(--fx-gi, 1) * 2px), 0, 0);
+    text-shadow:
+      calc(var(--fx-gi, 1) * -2px) 0 color-mix(in srgb, var(--fx-hot) 55%, transparent),
+      calc(var(--fx-gi, 1) * 2px) 0 color-mix(in srgb, var(--fx-accent) 55%, transparent);
+  }
+  12% {
+    transform: translate3d(calc(var(--fx-gi, 1) * -3px), 0, 0) skewX(calc(var(--fx-gi, 1) * -5deg));
+  }
+  20% {
+    transform: translate3d(calc(var(--fx-gi, 1) * 1px), 0, 0);
+    clip-path: inset(0 0 46% 0);
+  }
+  27% {
+    transform: none;
+    clip-path: inset(0 0 0 0);
+  }
+  46% {
+    transform: translate3d(calc(var(--fx-gi, 1) * -1px), 0, 0);
+    text-shadow:
+      calc(var(--fx-gi, 1) * -1px) 0 color-mix(in srgb, var(--fx-hot) 40%, transparent),
+      calc(var(--fx-gi, 1) * 1px) 0 color-mix(in srgb, var(--fx-accent) 40%, transparent);
+  }
+  68% {
+    transform: none;
+  }
+  100% {
+    transform: none;
+    clip-path: none;
+    text-shadow: none;
+  }
+}
+
+@keyframes fx-gl-a {
+  0% {
+    visibility: visible;
+    transform: translate3d(calc(var(--fx-gi, 1) * -7px), 0, 0);
+    clip-path: inset(6% 0 70% 0);
+  }
+  9% {
+    transform: translate3d(calc(var(--fx-gi, 1) * 5px), 0, 0);
+    clip-path: inset(44% 0 34% 0);
+  }
+  18% {
+    transform: translate3d(calc(var(--fx-gi, 1) * -3px), 0, 0);
+    clip-path: inset(72% 0 8% 0);
+  }
+  27% {
+    transform: translate3d(calc(var(--fx-gi, 1) * 8px), 0, 0);
+    clip-path: inset(20% 0 58% 0);
+  }
+  38% {
+    transform: translate3d(calc(var(--fx-gi, 1) * -4px), 0, 0);
+    clip-path: inset(0 0 82% 0);
+  }
+  50% {
+    transform: translate3d(calc(var(--fx-gi, 1) * 3px), 0, 0);
+    clip-path: inset(58% 0 22% 0);
+  }
+  62% {
+    transform: translate3d(calc(var(--fx-gi, 1) * -2px), 0, 0);
+    clip-path: inset(30% 0 46% 0);
+  }
+  76% {
+    transform: translate3d(calc(var(--fx-gi, 1) * -1.5px), 0, 0);
+    clip-path: inset(0 0 0 0);
+    opacity: 0.4;
+  }
+  90% {
+    transform: translate3d(calc(var(--fx-gi, 1) * -0.75px), 0, 0);
+    opacity: 0.22;
+  }
+  100% {
+    visibility: hidden;
+    transform: none;
+    clip-path: inset(0 0 100% 0);
+    opacity: 0;
+  }
+}
+
+@keyframes fx-gl-b {
+  0% {
+    visibility: visible;
+    transform: translate3d(calc(var(--fx-gi, 1) * 6px), 0, 0);
+    clip-path: inset(62% 0 14% 0);
+  }
+  9% {
+    transform: translate3d(calc(var(--fx-gi, 1) * -6px), 0, 0);
+    clip-path: inset(12% 0 66% 0);
+  }
+  18% {
+    transform: translate3d(calc(var(--fx-gi, 1) * 4px), 0, 0);
+    clip-path: inset(36% 0 40% 0);
+  }
+  27% {
+    transform: translate3d(calc(var(--fx-gi, 1) * -8px), 0, 0);
+    clip-path: inset(80% 0 0 0);
+  }
+  38% {
+    transform: translate3d(calc(var(--fx-gi, 1) * 5px), 0, 0);
+    clip-path: inset(48% 0 30% 0);
+  }
+  50% {
+    transform: translate3d(calc(var(--fx-gi, 1) * -3px), 0, 0);
+    clip-path: inset(4% 0 76% 0);
+  }
+  62% {
+    transform: translate3d(calc(var(--fx-gi, 1) * 2px), 0, 0);
+    clip-path: inset(66% 0 12% 0);
+  }
+  76% {
+    transform: translate3d(calc(var(--fx-gi, 1) * 1.5px), 0, 0);
+    clip-path: inset(0 0 0 0);
+    opacity: 0.4;
+  }
+  90% {
+    transform: translate3d(calc(var(--fx-gi, 1) * 0.75px), 0, 0);
+    opacity: 0.22;
+  }
+  100% {
+    visibility: hidden;
+    transform: none;
+    clip-path: inset(0 0 100% 0);
+    opacity: 0;
+  }
+}
+
+@keyframes fx-gl-mbase {
+  0% {
+    transform: translate3d(calc(var(--fx-gi, 1) * 1.5px), 0, 0);
+    text-shadow:
+      calc(var(--fx-gi, 1) * -1.5px) 0 color-mix(in srgb, var(--fx-hot) 45%, transparent),
+      calc(var(--fx-gi, 1) * 1.5px) 0 color-mix(in srgb, var(--fx-accent) 45%, transparent);
+  }
+  30% {
+    transform: translate3d(calc(var(--fx-gi, 1) * -1px), 0, 0);
+  }
+  60% {
+    transform: none;
+  }
+  100% {
+    transform: none;
+    text-shadow: none;
+  }
+}
+
+@keyframes fx-gl-m1 {
+  0% {
+    visibility: visible;
+    transform: translate3d(calc(var(--fx-gi, 1) * -6px), 0, 0);
+    clip-path: inset(18% 0 64% 0);
+  }
+  25% {
+    transform: translate3d(calc(var(--fx-gi, 1) * 4px), 0, 0);
+    clip-path: inset(56% 0 26% 0);
+  }
+  50% {
+    transform: translate3d(calc(var(--fx-gi, 1) * -2px), 0, 0);
+    clip-path: inset(34% 0 52% 0);
+  }
+  75% {
+    transform: translate3d(calc(var(--fx-gi, 1) * 1px), 0, 0);
+    clip-path: inset(0 0 0 0);
+    opacity: 0.3;
+  }
+  100% {
+    visibility: hidden;
+    transform: none;
+    clip-path: inset(0 0 100% 0);
+    opacity: 0;
+  }
+}
+
+@keyframes fx-gl-m2 {
+  0% {
+    visibility: visible;
+    transform: translate3d(calc(var(--fx-gi, 1) * 5px), 0, 0);
+    clip-path: inset(70% 0 10% 0);
+  }
+  25% {
+    transform: translate3d(calc(var(--fx-gi, 1) * -5px), 0, 0);
+    clip-path: inset(8% 0 74% 0);
+  }
+  50% {
+    transform: translate3d(calc(var(--fx-gi, 1) * 3px), 0, 0);
+    clip-path: inset(46% 0 36% 0);
+  }
+  75% {
+    transform: translate3d(calc(var(--fx-gi, 1) * -1px), 0, 0);
+    clip-path: inset(0 0 0 0);
+    opacity: 0.3;
+  }
+  100% {
+    visibility: hidden;
+    transform: none;
+    clip-path: inset(0 0 100% 0);
+    opacity: 0;
+  }
+}
+
+/* ------------------------------------------------------------------------ */
+/* 4b. Scramble text: the real text keeps its box (and stays the accessible  */
+/*     name); an aria-hidden overlay shows the decoding glyphs on top.        */
+/* ------------------------------------------------------------------------ */
+
+.fx-scr {
+  position: relative;
+  display: inline-block;
+}
+/* In a plain inline link the inline-block would drop the link's underline. */
+.fx-scr--inline {
+  text-decoration: inherit;
+}
+.fx-scr__fx {
+  position: absolute;
+  inset: 0;
+  visibility: hidden;
+  white-space: pre-wrap;
+  text-decoration: none;
+  pointer-events: none;
+  user-select: none;
+  /* clip sideways to the real text's width, never vertically */
+  clip-path: inset(-0.5em 0 -0.5em 0);
+}
+.fx-scr[data-on] > .fx-scr__txt {
+  color: transparent;
+}
+.fx-scr[data-on] > .fx-scr__fx {
+  visibility: visible;
+}
+.fx-scr__tail {
+  font-family: var(--fx-mono);
+  font-feature-settings: normal;
+  color: var(--fx-scr-tail, var(--fx-accent));
+}
+/* On filled buttons the accent can vanish: set --fx-scr-tail: currentColor on
+   the button, and add .fx-scr--quiet to the ScrambleText for a softer tail. */
+.fx-scr--quiet .fx-scr__tail {
+  opacity: 0.6;
+}
+
+@media print {
+  canvas.fx-shader,
+  div.fx-spot,
+  span.fx-holo,
+  .fx-glitch__copy,
+  .fx-scr__fx {
+    display: none !important;
+  }
+}

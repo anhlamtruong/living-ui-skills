@@ -1,0 +1,17 @@
+{
+  "name": "living-ui",
+  "owner": {
+    "name": "Anh Lam Truong",
+    "url": "https://www.lamanhtruong.com"
+  },
+  "description": "Skills for building web UIs that feel alive, from the making of lamanhtruong.com.",
+  "plugins": [
+    {
+      "name": "living-ui",
+      "source": "./",
+      "description": "Agent-swarm build animation, HyperFrames web video, live effects and the static-first workflow behind them.",
+      "homepage": "https://github.com/anhlamtruong/living-ui-skills",
+      "license": "MIT"
+    }
+  ]
+}

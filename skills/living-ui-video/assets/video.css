@@ -1,0 +1,120 @@
+/* Part of living-ui-skills (MIT). Adapt freely.
+   Styles for LoopVideo, VideoBand and the "preview window" frame.
+   Theme hooks (set them on :root or a wrapper; fallbacks are a dark blueprint look):
+     --lv-bg, --lv-line, --lv-line-strong, --lv-text, --lv-muted, --lv-dim, --lv-accent, --lv-mono */
+
+.lv-video {
+  position: relative;
+  overflow: hidden;
+  background: var(--lv-bg, #07090d);
+}
+.lv-video__media {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Pause toggle: hidden until hover/focus on pointer devices, always visible on touch. */
+.lv-video__toggle {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 2;
+  padding: 6px 10px;
+  border: 1px solid var(--lv-line-strong, #2a3546);
+  border-radius: 999px;
+  background: rgba(7, 9, 13, 0.72);
+  backdrop-filter: blur(6px);
+  color: var(--lv-muted, #8a97a8);
+  font: 500 0.66rem/1 var(--lv-mono, ui-monospace, monospace);
+  letter-spacing: 0.04em;
+  opacity: 0;
+  transform: translateY(4px);
+  transition:
+    opacity 200ms ease,
+    transform 200ms ease,
+    color 200ms ease,
+    border-color 200ms ease;
+}
+.lv-video:hover .lv-video__toggle,
+.lv-video__toggle:focus-visible,
+.lv-video__toggle[aria-pressed="true"] {
+  opacity: 1;
+  transform: none;
+}
+.lv-video__toggle:hover {
+  color: var(--lv-text, #e8edf4);
+  border-color: var(--lv-accent, #5eead4);
+}
+@media (hover: none) {
+  .lv-video__toggle {
+    opacity: 0.8;
+    transform: none;
+  }
+}
+
+/* "preview://name.mp4" window chrome around a featured clip (hero showreel). */
+.lv-window {
+  overflow: hidden;
+  border: 1px solid var(--lv-line, #1c2431);
+  border-radius: 14px;
+  background: var(--lv-bg, #07090d);
+}
+.lv-window__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--lv-line, #1c2431);
+  color: var(--lv-dim, #5b6676);
+  font: 400 0.75rem/1.4 var(--lv-mono, ui-monospace, monospace);
+}
+.lv-live-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 0.5rem;
+  border-radius: 999px;
+  background: #f87171;
+  box-shadow: 0 0 8px rgba(248, 113, 113, 0.8);
+  animation: lv-blink 1.6s ease-in-out infinite;
+}
+@keyframes lv-blink {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+/* Full-width band between two sections. */
+.lv-band {
+  position: relative;
+  border-top: 1px solid var(--lv-line, #1c2431);
+}
+.lv-band__meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  max-width: 70rem;
+  margin-inline: auto;
+  padding: 0.6rem 1.5rem;
+  color: var(--lv-dim, #5b6676);
+  font: 400 0.68rem/1.4 var(--lv-mono, ui-monospace, monospace);
+  letter-spacing: 0.04em;
+}
+.lv-band__caption {
+  display: none;
+}
+@media (min-width: 640px) {
+  .lv-band__caption {
+    display: inline;
+  }
+}
+/* Height follows the 6:1 render on wide screens and stops shrinking on phones,
+   where object-fit: cover crops the sides (keep key content in the middle). */
+.lv-band__clip {
+  height: clamp(150px, 16.67vw, 320px);
+  border-top: 1px solid var(--lv-line, #1c2431);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+}
